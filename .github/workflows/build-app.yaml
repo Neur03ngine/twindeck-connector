@@ -1,0 +1,111 @@
+name: Build app
+on:
+  workflow_call:
+    inputs:
+      app:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      image-name:
+        type: string
+        required: true
+      registry-prefix:
+        type: string
+        required: true
+      architectures:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        required: true
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Prepare native AMD64 and ARM64 runners
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@7412f0023ea9b6e58e8bb5059f1660f51376f49a # 2026.09.0
+        with:
+          architectures: ${{ inputs.architectures }}
+          image-name: ${{ inputs.image-name }}
+          registry-prefix: ${{ inputs.registry-prefix }}
+  build:
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-fund
+      - name: Build a local candidate
+        uses: home-assistant/builder/actions/build-image@7412f0023ea9b6e58e8bb5059f1660f51376f49a # 2026.09.0
+        with:
+          arch: ${{ matrix.arch }}
+          context: ./${{ inputs.app }}
+          image: ${{ matrix.image }}
+          image-tags: ${{ inputs.version }}
+          version: ${{ inputs.version }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          cache-gha-scope: ${{ inputs.app }}
+          cosign: "false"
+          load: "true"
+      - name: Test candidate on its native architecture
+        env:
+          APP: ${{ inputs.app }}
+          IMAGE: ${{ matrix.image }}:${{ inputs.version }}
+        run: node scripts/container-smoke.mjs "$APP" "$IMAGE"
+      - name: Publish and sign immutable version
+        if: inputs.publish
+        uses: home-assistant/builder/actions/build-image@7412f0023ea9b6e58e8bb5059f1660f51376f49a # 2026.09.0
+        with:
+          arch: ${{ matrix.arch }}
+          context: ./${{ inputs.app }}
+          image: ${{ matrix.image }}
+          image-tags: ${{ inputs.version }}
+          version: ${{ inputs.version }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          cache-gha-scope: ${{ inputs.app }}
+          push: "true"
+          skip-existing: ${{ inputs.version }}
+  manifest:
+    needs: [prepare, build]
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Publish and sign multi-architecture manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@7412f0023ea9b6e58e8bb5059f1660f51376f49a # 2026.09.0
+        with:
+          architectures: ${{ inputs.architectures }}
+          image-name: ${{ inputs.image-name }}
+          registry-prefix: ${{ inputs.registry-prefix }}
+          image-tags: ${{ inputs.version }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          skip-existing: ${{ inputs.version }}
+      - name: Verify both platforms in published manifest
+        env:
+          IMAGE: ${{ inputs.registry-prefix }}/${{ inputs.image-name }}:${{ inputs.version }}
+        run: |
+          docker buildx imagetools inspect "$IMAGE" --raw > manifest.json
+          jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | contains(["amd64", "arm64"])' manifest.json

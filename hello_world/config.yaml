@@ -1,0 +1,16 @@
+name: Hello World
+version: "1.0.0"
+slug: hello_world
+description: A minimal Home Assistant app that writes a configurable greeting to its log.
+url: https://github.com/Neur03ngine/twindeck-connector/tree/stable/hello_world
+image: ghcr.io/neur03ngine/twindeck-hello-world
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: once
+boot: manual
+options:
+  message: Hello from TwinDeck!
+schema:
+  message: "str(1,200)"

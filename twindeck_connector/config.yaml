@@ -1,0 +1,23 @@
+name: TwinDeck Connector
+version: "0.1.0"
+slug: twindeck_connector
+description: Connect your local Home Assistant to your TwinDeck home using an outbound encrypted connection.
+url: https://github.com/Neur03ngine/twindeck-connector/tree/stable/twindeck_connector
+image: ghcr.io/neur03ngine/twindeck-connector
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: application
+boot: auto
+stage: stable
+timeout: 30
+homeassistant_api: true
+options:
+  twindeck_url: ""
+  pairing_code: ""
+  sites_service_token: ""
+schema:
+  twindeck_url: url
+  pairing_code: password
+  sites_service_token: password

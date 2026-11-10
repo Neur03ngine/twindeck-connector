@@ -1,0 +1,72 @@
+name: Validate, build and publish
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, stable]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: apps-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    outputs:
+      apps: ${{ steps.info.outputs.apps }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --no-fund
+      - run: npm run check
+      - name: Lint Hello World app against the Home Assistant schema
+        uses: frenck/action-app-linter@d51677290aef26cdfc835271dd3c7343ce502809 # v2.21.2
+        with:
+          path: ./hello_world
+      - name: Lint TwinDeck Connector against the Home Assistant schema
+        uses: frenck/action-app-linter@d51677290aef26cdfc835271dd3c7343ce502809 # v2.21.2
+        with:
+          path: ./twindeck_connector
+      - name: Check shell scripts
+        run: shellcheck hello_world/run.sh twindeck_connector/run.sh
+      - name: Compute releases and enforce version increments
+        id: info
+        run: node scripts/release-info.mjs
+  apps:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.validate.outputs.apps) }}
+    uses: ./.github/workflows/build-app.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      app: ${{ matrix.app }}
+      version: ${{ matrix.version }}
+      image-name: ${{ matrix.name }}
+      registry-prefix: ${{ matrix.prefix }}
+      architectures: ${{ matrix.architectures }}
+      publish: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+  promote:
+    needs: [validate, apps]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Advance installable branch only after every image is verified
+        run: git push origin HEAD:refs/heads/stable

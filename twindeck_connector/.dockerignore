@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!run.sh
+!connector.mjs
+!protocol.mjs
+!home-assistant.mjs

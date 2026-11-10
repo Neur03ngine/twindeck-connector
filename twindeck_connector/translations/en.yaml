@@ -1,0 +1,10 @@
+configuration:
+  twindeck_url:
+    name: TwinDeck URL
+    description: HTTPS origin of your TwinDeck website, without a path.
+  pairing_code:
+    name: Pairing code
+    description: One-use code from your TwinDeck home's Home Assistant settings.
+  sites_service_token:
+    name: Sites service token (optional)
+    description: Only required for private Sites hosting. Leave empty for other hosting.
