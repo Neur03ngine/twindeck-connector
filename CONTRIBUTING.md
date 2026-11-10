@@ -44,11 +44,13 @@ image namespace and matching validation assertions. GHCR names must be lowercase
 2. Enable Actions and allow the release jobs' declared `contents: write`,
    `packages: write`, and `id-token: write` permissions. `GITHUB_TOKEN` handles
    authentication; no PAT secret is needed.
-3. Wait for the complete workflow and creation of `stable`.
+3. Wait for the architecture and manifest build jobs to finish.
 4. In GitHub Packages, make **all six container packages public** (two manifest
    packages and four architecture packages). New GHCR packages may start private.
    A public source repository does not automatically make packages public.
-5. Set `stable` as the repository default branch and verify anonymous pulls of
+5. Re-run the workflow after changing visibility. Its promotion job verifies
+   anonymous pulls and Supervisor labels before creating `stable`. Set `stable`
+   as the repository default branch. The main images are
    `ghcr.io/neur03ngine/twindeck-connector:0.1.0` and
    `ghcr.io/neur03ngine/twindeck-hello-world:1.0.0` on both platforms.
 6. Add the repository to Home Assistant OS and run the acceptance test below.
