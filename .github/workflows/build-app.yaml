@@ -65,6 +65,7 @@ jobs:
           version: ${{ inputs.version }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           cache-gha-scope: ${{ inputs.app }}
+          cache-image-tag: ${{ inputs.version }}
           cosign: "false"
           load: "true"
       - name: Test candidate on its native architecture
@@ -83,6 +84,7 @@ jobs:
           version: ${{ inputs.version }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           cache-gha-scope: ${{ inputs.app }}
+          cache-image-tag: ${{ inputs.version }}
           push: "true"
           skip-existing: ${{ inputs.version }}
   manifest:
