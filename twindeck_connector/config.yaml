@@ -8,9 +8,6 @@ arch:
   - aarch64
   - amd64
 init: false
-startup: application
-boot: auto
-stage: stable
 timeout: 30
 homeassistant_api: true
 options:
