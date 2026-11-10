@@ -20,7 +20,7 @@ try {
     assert.equal(result.status, 0, output); assert.match(output, /TwinDeck smoke test passed/);
     await writeFile(join(directory, 'options.json'), JSON.stringify({ message: '' }));
     const invalid = docker(['run', '--rm', '-v', `${directory}:/data`, image]);
-    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.equal(invalid.status, 4, invalid.stdout + invalid.stderr); // jq -e: no matching valid message
   } else {
     assert.equal(result.status, 1, output);
     assert.match(output, /Supervisor did not provide a Home Assistant API credential/);
