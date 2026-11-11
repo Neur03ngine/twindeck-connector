@@ -1,7 +1,7 @@
 export const VERSION = 1;
 export const MAX_RESPONSE_BYTES = 1500000;
 const entityPattern = /^[a-z_]+\.[a-z0-9_]+$/;
-const attributes = new Set(['friendly_name','device_class','unit_of_measurement','temperature_unit','current_temperature','temperature','target_temperature','target_temp_low','target_temp_high','current_humidity','humidity','hvac_modes','hvac_action','preset_mode','preset_modes','fan_mode','fan_modes','swing_mode','swing_modes','swing_horizontal_mode','swing_horizontal_modes','supported_features','min_temp','max_temp','target_temp_step','min','max','step','value','brightness','rgb_color','hs_color','xy_color','color_temp_kelvin','min_color_temp_kelvin','max_color_temp_kelvin','supported_color_modes','battery_level','battery','last_triggered','id','twindeck_schedule','floor_temperature','measured_temperature','local_temperature','target_temp']);
+const attributes = new Set(['friendly_name','device_class','unit_of_measurement','temperature_unit','current_temperature','temperature','target_temperature','target_temp_low','target_temp_high','current_humidity','humidity','hvac_modes','hvac_action','preset_mode','preset_modes','fan_mode','fan_modes','swing_mode','swing_modes','swing_horizontal_mode','swing_horizontal_modes','supported_features','min_temp','max_temp','target_temp_step','min','max','step','value','brightness','rgb_color','hs_color','xy_color','color_temp_kelvin','min_color_temp_kelvin','max_color_temp_kelvin','supported_color_modes','battery_level','battery','last_triggered','id','twindeck_schedule','floor_temperature','measured_temperature','local_temperature','target_temp','options']);
 export function sanitizeState(entity) {
   if (!entity || !entityPattern.test(entity.entity_id) || typeof entity.state !== 'string' || !entity.attributes || typeof entity.attributes !== 'object') throw new Error('Invalid Home Assistant state.');
   return { entity_id: entity.entity_id, state: entity.state,
@@ -38,6 +38,8 @@ export function allowedRequest(path, method) {
   if (method === 'POST' && /^\/services\/(light|switch|fan|input_boolean|automation)\/turn_(on|off)$/.test(path)) return true;
   if (method === 'POST' && /^\/services\/climate\/(set_temperature|set_hvac_mode|set_preset_mode|set_fan_mode|set_swing_mode|set_swing_horizontal_mode|turn_on|turn_off)$/.test(path)) return true;
   if (method === 'POST' && /^\/services\/(number|input_number)\/set_value$/.test(path)) return true;
+  if (method === 'POST' && /^\/services\/(select|input_select)\/select_option$/.test(path)) return true;
+  if (method === 'POST' && /^\/services\/(button|input_button)\/press$/.test(path)) return true;
   return ['POST', 'DELETE'].includes(method) && /^\/config\/automation\/config\/twindeck_[a-zA-Z0-9_-]+$/.test(path);
 }
 function targets(value, domain) {
@@ -57,7 +59,7 @@ export function validateJob(job, now = Date.now()) {
   if (service) {
     const [, domain, action] = service;
     targets(job.body.entity_id, domain);
-    const permitted = domain === 'light' ? ['entity_id','brightness','rgb_color','color_temp_kelvin'] : domain === 'climate' ? ['entity_id','temperature','target_temp_low','target_temp_high','hvac_mode','preset_mode','fan_mode','swing_mode','swing_horizontal_mode'] : ['number','input_number'].includes(domain) ? ['entity_id','value'] : ['entity_id'];
+    const permitted = domain === 'light' ? ['entity_id','brightness','rgb_color','color_temp_kelvin'] : domain === 'climate' ? ['entity_id','temperature','target_temp_low','target_temp_high','hvac_mode','preset_mode','fan_mode','swing_mode','swing_horizontal_mode'] : ['number','input_number'].includes(domain) ? ['entity_id','value'] : ['select','input_select'].includes(domain) ? ['entity_id','option'] : ['entity_id'];
     if (Object.keys(job.body).some(key => !permitted.includes(key))) throw new Error('Unsupported service field.');
     for (const key of ['temperature','target_temp_low','target_temp_high','value','brightness','color_temp_kelvin']) {
       if (job.body[key] !== undefined && (typeof job.body[key] !== 'number' || !Number.isFinite(job.body[key]))) throw new Error('Invalid numeric service value.');
@@ -66,7 +68,8 @@ export function validateJob(job, now = Date.now()) {
     if (job.body.color_temp_kelvin !== undefined && (!Number.isInteger(job.body.color_temp_kelvin) || job.body.color_temp_kelvin < 1000 || job.body.color_temp_kelvin > 40000)) throw new Error('Invalid color temperature.');
     if (job.body.rgb_color !== undefined && (!Array.isArray(job.body.rgb_color) || job.body.rgb_color.length !== 3 || job.body.rgb_color.some(v => !Number.isInteger(v) || v < 0 || v > 255))) throw new Error('Invalid RGB color.');
     for (const key of ['hvac_mode','preset_mode','fan_mode','swing_mode','swing_horizontal_mode']) if (job.body[key] !== undefined && (typeof job.body[key] !== 'string' || job.body[key].length > 128)) throw new Error('Invalid climate mode.');
-    const required = { set_value: 'value', set_hvac_mode: 'hvac_mode', set_preset_mode: 'preset_mode', set_fan_mode: 'fan_mode', set_swing_mode: 'swing_mode', set_swing_horizontal_mode: 'swing_horizontal_mode' }[action];
+    if (job.body.option !== undefined && (typeof job.body.option !== 'string' || job.body.option.length > 4096)) throw new Error('Invalid appliance option.');
+    const required = { select_option: 'option', set_value: 'value', set_hvac_mode: 'hvac_mode', set_preset_mode: 'preset_mode', set_fan_mode: 'fan_mode', set_swing_mode: 'swing_mode', set_swing_horizontal_mode: 'swing_horizontal_mode' }[action];
     if (required && job.body[required] === undefined) throw new Error('Missing service value.');
     return job;
   }
