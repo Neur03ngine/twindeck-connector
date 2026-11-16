@@ -68,6 +68,13 @@ test('Home Assistant proxy authenticates locally, discovers rooms, receives stat
     ha.start(); for (let i = 0; i < 100 && !ha.connected; i++) await sleep(5);
     assert.equal(ha.connected, true); assert.equal(ha.snapshot().entities[0].attributes.brightness, 123);
     assert.equal(ha.snapshot().discovery.areas[0].name, 'Kitchen'); assert.doesNotMatch(JSON.stringify(ha.snapshot()), /access_token|configuration_url|secret/);
+    assert.equal(ha.snapshot().discovery.areas[0].floor_id, 'ground');
+    assert.deepEqual(ha.snapshot().discovery.floors, [{floor_id:'ground',name:'Ground floor'}]);
+    assert.deepEqual(ha.snapshot().discovery.labels, [{label_id:'lights',name:'Lights'}]);
+    assert.deepEqual(ha.snapshot().discovery.registryDevices[0].labels, ['lights']);
+    assert.deepEqual(ha.snapshot().discovery.registryEntities[0].labels, ['lights']);
+    assert.ok(socket.messages.some(message => message.type === 'subscribe_events' && message.event_type === 'floor_registry_updated'));
+    assert.ok(socket.messages.some(message => message.type === 'subscribe_events' && message.event_type === 'label_registry_updated'));
     assert.equal(calls[0][0], 'http://supervisor/core/api/config'); assert.equal(calls[0][1].headers.Authorization, 'Bearer supervisor-secret');
     assert.equal(socket.messages[0].access_token, 'supervisor-secret');
     socket.emit({ type: 'event', event: { event_type: 'state_changed', data: { entity_id: 'light.kitchen', new_state: state('off') } } });

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Include Home Assistant floor names, area floor assignments, labels and device/entity label assignments for automatic TwinDeck setup suggestions; refresh them on registry changes.
+
+- Relay appliance select/input-select options and button/input-button press actions with bounded payload validation.
+- Preserve select options in device snapshots so TwinDeck can show the settings supported by each appliance.
+
 ## 0.1.0
 
 - Initial Home Assistant app repository release for amd64 and aarch64.

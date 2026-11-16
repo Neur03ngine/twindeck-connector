@@ -28,9 +28,19 @@ export class HomeAssistant {
     });
   }
   async registries() {
-    const [areas, entities, devices] = await Promise.all(['config/area_registry/list','config/entity_registry/list','config/device_registry/list'].map(type => this.rpc(type)));
+    const [areas, entities, devices, floors, labels] = await Promise.all([
+      ...['config/area_registry/list','config/entity_registry/list','config/device_registry/list'].map(type => this.rpc(type)),
+      this.rpc('config/floor_registry/list').catch(() => []),
+      this.rpc('config/label_registry/list').catch(() => []),
+    ]);
     const pick = (value, keys) => Object.fromEntries(keys.filter(key => value[key] !== undefined && value[key] !== null).map(key => [key, value[key]]));
-    this.discovery = { areas: areas.map(area => pick(area, ['area_id','name'])), registryEntities: entities.map(entity => pick(entity, ['entity_id','device_id','area_id','disabled_by'])), registryDevices: devices.map(device => pick(device, ['id','area_id','name','name_by_user','manufacturer','model'])) };
+    this.discovery = {
+      areas: areas.map(area => pick(area, ['area_id','name','floor_id'])),
+      floors: (floors || []).map(floor => pick(floor, ['floor_id','name'])),
+      labels: (labels || []).map(label => pick(label, ['label_id','name'])),
+      registryEntities: entities.map(entity => pick(entity, ['entity_id','device_id','area_id','disabled_by','labels'])),
+      registryDevices: devices.map(device => pick(device, ['id','area_id','name','name_by_user','manufacturer','model','labels'])),
+    };
   }
   async initialize(socket) {
     this.buffer = [];
@@ -42,7 +52,7 @@ export class HomeAssistant {
     await this.registries();
     const config = await this.request('/config');
     this.temperatureUnit = config.unit_system?.temperature === '°F' ? '°F' : '°C'; this.timezone = config.time_zone || 'UTC';
-    for (const event_type of ['area_registry_updated','entity_registry_updated','device_registry_updated']) await this.rpc('subscribe_events', { event_type });
+    for (const event_type of ['area_registry_updated','entity_registry_updated','device_registry_updated','floor_registry_updated','label_registry_updated']) await this.rpc('subscribe_events', { event_type });
     if (this.socket !== socket) return;
     this.connected = true; this.attempt = 0; clearTimeout(this.watchdog);
     this.heartbeat = setInterval(() => void this.rpc('ping').catch(() => socket.close()), 15000);

@@ -6,7 +6,7 @@ export class ConnectorHomeAssistantSocket {
     const message = JSON.parse(raw); this.messages.push(message);
     queueMicrotask(() => {
       if (message.type === 'auth') { this.emit({ type: 'auth_ok' }); return; }
-      const result = message.type === 'get_states' ? [lampState()] : message.type === 'config/area_registry/list' ? [{ area_id: 'kitchen', name: 'Kitchen', secret: 'hidden' }] : message.type === 'config/entity_registry/list' ? [{ entity_id: 'light.kitchen', device_id: 'lamp', access_token: 'hidden' }] : message.type === 'config/device_registry/list' ? [{ id: 'lamp', name: 'Lamp', configuration_url: 'http://private' }] : null;
+      const result = message.type === 'get_states' ? [lampState()] : message.type === 'config/area_registry/list' ? [{ area_id: 'kitchen', name: 'Kitchen', floor_id: 'ground', secret: 'hidden' }] : message.type === 'config/entity_registry/list' ? [{ entity_id: 'light.kitchen', device_id: 'lamp', labels: ['lights'], access_token: 'hidden' }] : message.type === 'config/device_registry/list' ? [{ id: 'lamp', name: 'Lamp', labels: ['lights'], configuration_url: 'http://private' }] : message.type === 'config/floor_registry/list' ? [{ floor_id: 'ground', name: 'Ground floor', private: 'hidden' }] : message.type === 'config/label_registry/list' ? [{ label_id: 'lights', name: 'Lights', description: 'hidden' }] : null;
       this.emit({ id: message.id, type: message.type === 'ping' ? 'pong' : 'result', success: true, result });
     });
   }
