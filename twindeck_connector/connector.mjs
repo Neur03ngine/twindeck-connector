@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { HomeAssistant } from './home-assistant.mjs';
 import { boundedJson, cloudOrigin, sanitizeState, validateJob, VERSION } from './protocol.mjs';
+import { automationFingerprint } from './automations.mjs';
 
 export class Connector {
   constructor({ origin, pairingCode, sitesServiceToken = '', homeAssistant, dataDirectory = '/data', fetcher = fetch, log = console.log }) {
@@ -42,11 +43,19 @@ export class Connector {
     try {
       const job = validateJob(raw);
       if (!this.ha.connected) throw new Error('Home Assistant is offline.');
-      let result = await this.ha.request(job.path, job.method, job.body);
+      const automationRead = job.method === 'GET' && job.path.startsWith('/config/automation/config/twindeck_auto_');
+      if (job.method === 'POST' && job.body?.description) {
+        const description = JSON.parse(job.body.description);
+        if (description.twindeck === 2 && description.definition.timezone !== this.ha.timezone) throw new Error('Home timezone changed.');
+      }
+      let result;
+      try { result = await this.ha.request(job.path, job.method, job.body); }
+      catch (error) { if (automationRead && error.status === 404) return { id: job.id, ok: true, result: { exists: false } }; throw error; }
       if (job.path === '/config') result = { unit_system: { temperature: result.unit_system?.temperature }, time_zone: result.time_zone };
       else if (job.path === '/states') result = result.map(sanitizeState);
       else if (job.path.startsWith('/states/')) result = sanitizeState(result);
       else if (job.path.startsWith('/history/period/')) result = result.map(series => series.map(sanitizeState));
+      else if (automationRead) result = { exists: true, fingerprint: await automationFingerprint(result) };
       else result = null; // Service responses can contain unrelated entity data.
       if (Buffer.byteLength(JSON.stringify(result)) > 490000) throw new Error('Home Assistant result is too large.');
       return { id: job.id, ok: true, result };

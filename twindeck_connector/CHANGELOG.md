@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
+
+- Publish bounded TwinDeck sensor/schedule automations with light and thermostat power actions. Rebuild definitions locally and return only configuration fingerprints for conflict detection.
 
 - Include Home Assistant floor names, area floor assignments, labels and device/entity label assignments for automatic TwinDeck setup suggestions; refresh them on registry changes.
 

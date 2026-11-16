@@ -9,7 +9,7 @@ export class HomeAssistant {
   async request(path, method = 'GET', body) {
     const response = await this.fetcher(`${this.restUrl}${path}`, { method, redirect: 'error', signal: AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    if (!response.ok) throw new Error(`Home Assistant returned HTTP ${response.status}.`);
+    if (!response.ok) { const error = new Error(`Home Assistant returned HTTP ${response.status}.`); error.status = response.status; throw error; }
     if (response.status === 204) return null;
     return boundedJson(response);
   }

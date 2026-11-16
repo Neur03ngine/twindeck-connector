@@ -9,7 +9,7 @@ LABEL io.hass.type="app" \
       org.opencontainers.image.version="${BUILD_VERSION}"
 RUN apk add --no-cache nodejs && node --input-type=module -e "if (typeof WebSocket !== 'function') process.exit(1)"
 WORKDIR /app
-COPY connector.mjs protocol.mjs home-assistant.mjs ./
+COPY connector.mjs protocol.mjs home-assistant.mjs automations.mjs ./
 COPY run.sh /run.sh
 RUN chmod 0755 /run.sh
 CMD ["/run.sh"]

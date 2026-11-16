@@ -1,3 +1,4 @@
+import { compileAutomation } from './automations.mjs';
 export const VERSION = 1;
 export const MAX_RESPONSE_BYTES = 1500000;
 const entityPattern = /^[a-z_]+\.[a-z0-9_]+$/;
@@ -33,6 +34,7 @@ export async function boundedJson(response, limit = MAX_RESPONSE_BYTES) {
 
 export function allowedRequest(path, method) {
   if (typeof path !== 'string') return false;
+  if (method === 'GET' && /^\/config\/automation\/config\/twindeck_auto_[a-f0-9-]{36}_[a-f0-9-]{36}$/.test(path)) return true;
   if (method === 'GET' && (/^\/(config|states)$/.test(path) || /^\/states\/[a-z_]+\.[a-z0-9_]+$/.test(path))) return true;
   if (method === 'GET' && /^\/history\/period\/[0-9TZ:%.+-]+\?filter_entity_id=(climate|sensor|number|input_number)\.[a-z0-9_]+&end_time=[0-9TZ:%.+-]+$/.test(path)) return true;
   if (method === 'POST' && /^\/services\/(light|switch|fan|camera|input_boolean|automation)\/turn_(on|off)$/.test(path)) return true;
@@ -73,8 +75,13 @@ export function validateJob(job, now = Date.now()) {
     if (required && job.body[required] === undefined) throw new Error('Missing service value.');
     return job;
   }
-  // Never accept arbitrary automation YAML/actions from the cloud. Rebuild only TwinDeck light timers.
+  // Never trust cloud-supplied YAML/actions. Rebuild bounded definitions locally.
   const id = job.path.split('/').at(-1), description = JSON.parse(job.body.description);
+  if (description.twindeck === 2) {
+    const body = compileAutomation(description.homeId, description.automationId, description.revision, description.definition);
+    if (body.id !== id) throw new Error('Automation identity mismatch.');
+    return { ...job, body };
+  }
   if (description.twindeck !== 1 || !['turn_on','turn_off'].includes(description.action) || !Number.isFinite(Date.parse(description.dueAt)) || Date.parse(description.dueAt) < now || Date.parse(description.dueAt) > now + 7 * 86400000 + 60000) throw new Error('Invalid light timer.');
   targets(description.entityIds, 'light');
   const dueAt = new Date(description.dueAt).toISOString();
