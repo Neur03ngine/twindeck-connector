@@ -71,6 +71,7 @@ The Supervisor credential has Home Assistant administrator authority. The connec
 - **HTTP 403 / interactive sign-in response:** check host-level access restrictions. For a private Sites website, configure `sites_service_token` as described above. The relay also authenticates the connector independently of browser cookies.
 - **Paired but offline:** check that Home Assistant is running, the app has `homeassistant_api` enabled, and the Home Assistant registry APIs are accessible.
 - **Connection unavailable:** check outbound HTTPS/DNS and the TwinDeck website. No inbound firewall or router port change is needed.
+- **Online readings but commands fail:** update the connector to 0.1.2 or later. Older versions reject valid commands when the Home Assistant host clock differs from TwinDeck by more than a few seconds. Version 0.1.2 uses authenticated cloud time for command deadlines and still rejects expired jobs. Updating preserves the pairing; no new code is needed.
 - **App not listed:** confirm the folder location and inspect Supervisor logs for configuration errors. Preserve Unix (LF) line endings in `run.sh`.
 - **Large installations:** snapshots are limited to 1.5 MB and 10,000 entities; individual history responses are limited to 490 KB. A larger request fails rather than silently truncating data.
 

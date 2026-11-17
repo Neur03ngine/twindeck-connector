@@ -1,5 +1,5 @@
 name: TwinDeck Connector
-version: "0.1.1"
+version: "0.1.2"
 slug: twindeck_connector
 description: Connect your local Home Assistant to your TwinDeck home using an outbound encrypted connection.
 url: https://github.com/Neur03ngine/twindeck-connector/tree/stable/twindeck_connector
