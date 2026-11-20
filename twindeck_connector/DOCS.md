@@ -51,6 +51,11 @@ If the TwinDeck website is protected by the Sites **Sign in with ChatGPT** gate,
 
 The connector opens outbound HTTPS requests to your TwinDeck origin on port 443. Nothing listens on a public port. Locally, it connects to the Supervisor REST/WebSocket proxy using `SUPERVISOR_TOKEN`, which never leaves the add-on.
 
+For optional local OCR, install TwinDeck OCR 1.1.0 or newer from the website's OCR ZIP on the same Home Assistant device.
+Set the same `ocr_token` in both apps and enable Documents and Devices for that TwinDeck home.
+The home owner then selects **Enable connector OCR** in the TwinDeck connection settings.
+The token is sent only to the separate OCR app over the internal app network. The connector uses its paired home credential to fetch document jobs and send OCR results to TwinDeck. A long OCR job does not block device commands.
+
 It uploads device entity IDs and states, an allowlist of attributes used by TwinDeck (including temperatures, lighting values and friendly names), room/device/entity registries, temperature units, and timezone. Device history is requested only when TwinDeck asks for it. TwinDeck stores the latest snapshot and short-lived command jobs in its database; it does not receive general access to your LAN. Room and device names are household data visible to authorized members of that TwinDeck home.
 
 The Supervisor credential has Home Assistant administrator authority. The connector independently restricts cloud requests to supported device reads, lighting/climate and existing compatibility controls, and TwinDeck light timers. Arbitrary URLs, Home Assistant user/configuration APIs, shell commands, and arbitrary automation actions are rejected. Keep your TwinDeck origin and pairing code under your control.
@@ -71,6 +76,7 @@ The Supervisor credential has Home Assistant administrator authority. The connec
 - **HTTP 403 / interactive sign-in response:** check host-level access restrictions. For a private Sites website, configure `sites_service_token` as described above. The relay also authenticates the connector independently of browser cookies.
 - **Paired but offline:** check that Home Assistant is running, the app has `homeassistant_api` enabled, and the Home Assistant registry APIs are accessible.
 - **Connection unavailable:** check outbound HTTPS/DNS and the TwinDeck website. No inbound firewall or router port change is needed.
+- **Online readings but commands fail:** update the connector to 0.1.2 or later. Older versions reject valid commands when the Home Assistant host clock differs from TwinDeck by more than a few seconds. Version 0.1.2 uses authenticated cloud time for command deadlines and still rejects expired jobs. Updating preserves the pairing; no new code is needed.
 - **App not listed:** confirm the folder location and inspect Supervisor logs for configuration errors. Preserve Unix (LF) line endings in `run.sh`.
 - **Large installations:** snapshots are limited to 1.5 MB and 10,000 entities; individual history responses are limited to 490 KB. A larger request fails rather than silently truncating data.
 

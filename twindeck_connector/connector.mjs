@@ -5,14 +5,22 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { HomeAssistant } from './home-assistant.mjs';
 import { boundedJson, cloudOrigin, sanitizeState, validateJob, VERSION } from './protocol.mjs';
 import { automationFingerprint } from './automations.mjs';
+import { runConnectorOcr } from './ocr.mjs';
 
 export class Connector {
-  constructor({ origin, pairingCode, sitesServiceToken = '', homeAssistant, dataDirectory = '/data', fetcher = fetch, log = console.log }) {
+  constructor({ origin, pairingCode, sitesServiceToken = '', ocrToken = '', homeAssistant, dataDirectory = '/data', fetcher = fetch, log = console.log, monotonicNow = () => performance.now(), wallNow = () => Date.now() }) {
     this.origin = origin; this.pairingCode = pairingCode; this.ha = homeAssistant; this.dataDirectory = dataDirectory; this.fetcher = fetcher; this.log = log;
     this.results = []; this.executed = new Set(); this.stopped = false;
     this.sitesServiceToken = sitesServiceToken;
+    this.ocrToken = ocrToken;
+    this.monotonicNow = monotonicNow;
+    this.wallNow = wallNow;
+  }
+  cloudNow() {
+    return this.cloudClock ? this.cloudClock.serverNow + Math.max(0, this.monotonicNow() - this.cloudClock.observedAt) : this.wallNow();
   }
   async cloud(path, input, token) {
+    const startedAt = this.monotonicNow();
     const signal = AbortSignal.any([AbortSignal.timeout(15000), ...(this.abort ? [this.abort.signal] : [])]);
     const response = await this.fetcher(`${this.origin}/api/devices/connector/${path}`, { method: 'POST', redirect: 'error', signal,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(this.sitesServiceToken ? { 'OAI-Sites-Authorization': `Bearer ${this.sitesServiceToken}` } : {}) }, body: JSON.stringify(input) });
@@ -20,6 +28,11 @@ export class Connector {
     let value;
     try { value = await boundedJson(response, 500000); } catch { throw new Error('TwinDeck returned an invalid connector response.'); }
     if (value.protocol !== VERSION) throw new Error('Unsupported TwinDeck connector protocol.');
+    // Job deadlines use the cloud clock, which can differ from the HA host's.
+    // HTTPS authenticates this Date header. Add its rounding interval and the
+    // full round trip so network/body delays can only shorten a job's lifetime.
+    const observedAt = this.monotonicNow(), serverDate = Date.parse(response.headers.get('date') || '');
+    this.cloudClock = Number.isFinite(serverDate) ? { serverNow: serverDate + 1000 + Math.max(0, observedAt - startedAt), observedAt } : undefined;
     return value;
   }
   async pair() {
@@ -41,7 +54,7 @@ export class Connector {
     if (this.executed.size > 1000) this.executed.clear();
     if (typeof raw?.id === 'string') this.executed.add(raw.id);
     try {
-      const job = validateJob(raw);
+      const job = validateJob(raw, this.cloudNow());
       if (!this.ha.connected) throw new Error('Home Assistant is offline.');
       const automationRead = job.method === 'GET' && job.path.startsWith('/config/automation/config/twindeck_auto_');
       if (job.method === 'POST' && job.body?.description) {
@@ -82,11 +95,13 @@ export class Connector {
   stop() { this.stopped = true; this.abort?.abort(); this.ha.stop(); }
   async run() {
     this.abort = new AbortController(); let failures = 0;
+    let ocr;
     try {
       await this.pair();
       if (this.stopped) return;
       this.ha.start();
       this.log('Connector running. The Home Assistant credential stays inside this add-on.');
+      if (/^[\x21-\x7e]{32,}$/.test(this.ocrToken)) ocr = runConnectorOcr(this, this.ocrToken, this.abort.signal);
       while (!this.stopped) {
         let delay;
         try { delay = await this.exchange(); failures = 0; }
@@ -99,7 +114,7 @@ export class Connector {
         }
         await sleep(delay, undefined, { signal: this.abort.signal }).catch(() => {});
       }
-    } finally { this.ha.stop(); }
+    } finally { this.abort.abort(); this.ha.stop(); await ocr; }
   }
 }
 
@@ -110,7 +125,8 @@ async function main() {
   const origin = cloudOrigin(options.twindeck_url);
   if (!process.env.SUPERVISOR_TOKEN) throw new Error('Supervisor did not provide a Home Assistant API credential.');
   const ha = new HomeAssistant({ token: process.env.SUPERVISOR_TOKEN });
-  const connector = new Connector({ origin, pairingCode: options.pairing_code?.trim(), sitesServiceToken: options.sites_service_token?.trim(), homeAssistant: ha, dataDirectory });
+  const connector = new Connector({ origin, pairingCode: options.pairing_code?.trim(), sitesServiceToken: options.sites_service_token?.trim(),
+    ocrToken: options.ocr_token?.trim(), homeAssistant: ha, dataDirectory });
   process.once('SIGTERM', () => connector.stop()); process.once('SIGINT', () => connector.stop());
   await connector.run();
 }

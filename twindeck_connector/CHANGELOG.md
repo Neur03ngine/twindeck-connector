@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3
+
+- Add optional document OCR through the paired home connection, with separate local OCR processing.
+
+## 0.1.2
+
+- Validate command deadlines using the authenticated TwinDeck response time instead of the Home Assistant host clock. Fix state reads and temperature commands being rejected when the host clock differs from the cloud.
+- Account conservatively for response rounding and network delay, and use monotonic elapsed time so clock corrections do not extend command validity.
+
 ## 0.1.1
 
 - Publish bounded TwinDeck sensor/schedule automations with light and thermostat power actions. Rebuild definitions locally and return only configuration fingerprints for conflict detection.
